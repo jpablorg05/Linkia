@@ -145,7 +145,7 @@ export const AppProvider = ({ children }) => {
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
-    const SOCKET_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'http://localhost:3000';
+    const SOCKET_URL = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace('/api', '') : 'https://linkia-backend.onrender.com';
     const newSocket = io(SOCKET_URL);
     socketRef.current = newSocket;
     setSocket(newSocket);
