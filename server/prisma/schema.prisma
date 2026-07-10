@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   // 'buyer' or 'seller'
+  phone     String?
+  address   String?
+  
+  // Para vendedores
+  rif       String?
+  categories String?
+  
+  createdAt DateTime @default(now())
+  
+  // Relaciones
+  buyerOrders Order[] @relation("BuyerOrders")
+  sellerOrders Order[] @relation("SellerOrders")
+  
+  sentMessages Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  
+  reviewsGiven Review[] @relation("ReviewsGiven")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+}
+
+model Order {
+  id        Int      @id @default(autoincrement())
+  item      String
+  price     Float
+  status    String   // 'Pendiente', 'Pagado', 'Enviado', 'Entregado'
+  
+  buyerId   Int
+  buyer     User     @relation("BuyerOrders", fields: [buyerId], references: [id])
+  
+  sellerId  Int
+  seller    User     @relation("SellerOrders", fields: [sellerId], references: [id])
+  
+  review    Review?  // Un pedido puede tener una reseña
+  
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  text      String
+  
+  senderId  Int
+  sender    User     @relation("SentMessages", fields: [senderId], references: [id])
+  
+  receiverId Int
+  receiver   User    @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  rating    Int      // 1 a 5
+  comment   String?
+  
+  buyerId   Int
+  buyer     User     @relation("ReviewsGiven", fields: [buyerId], references: [id])
+  
+  sellerId  Int
+  seller    User     @relation("ReviewsReceived", fields: [sellerId], references: [id])
+  
+  orderId   Int      @unique
+  order     Order    @relation(fields: [orderId], references: [id])
+  
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String
+  desc      String?
+  category  String?
+  price     Float
+  stock     Int      @default(1)
+  discount  Int      @default(0)
+  image     String?
+  images    String?  // Almacena JSON string de imágenes
+  createdAt DateTime @default(now())
+}
