@@ -199,6 +199,21 @@ export default function PaymentMockPage() {
           </div>
         )}
 
+        {status === 'error' && (
+          <div className="flex-center animate-slide-up" style={{ flexDirection: 'column', height: '100%', textAlign: 'center' }}>
+            <div style={{ width: 80, height: 80, background: 'rgba(239, 68, 68, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem' }}>
+              <span style={{ fontSize: '2.5rem' }}>❌</span>
+            </div>
+            <h2 style={{ fontSize: '2rem', color: 'var(--text-main)', marginBottom: '1rem', letterSpacing: '-0.5px' }}>Error al enviar</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: '400px', marginBottom: '2rem' }}>
+              Hubo un problema procesando tu pago. Por favor intenta de nuevo.
+            </p>
+            <button onClick={() => setStatus('idle')} className="btn-primary" style={{ padding: '1rem 2rem' }}>
+              Volver a intentar
+            </button>
+          </div>
+        )}
+
       </div>
 
       <style>{`
