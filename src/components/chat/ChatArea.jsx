@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Store, User, CheckCircle, Paperclip, X, Truck } from 'lucide-react';
-import { useAppContext } from '../context/AppContext';
-import api from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Send, Store, User, CheckCircle, Paperclip, X, Truck, Star, Zap, Package } from 'lucide-react';
+import { useAppContext } from '../../context/AppContext';
+import api from '../../services/api';
 
-export default function ChatPage() {
-  const { id } = useParams(); // partnerId
-  const partnerId = parseInt(id);
+export default function ChatArea({ partnerId, onActiveItemChange }) {
   const navigate = useNavigate();
-  const { user, socket } = useAppContext();
+  const { user, socket, chats } = useAppContext();
   
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -119,6 +117,22 @@ export default function ChatPage() {
       };
     }
   }, [socket, partnerId]);
+
+  useEffect(() => {
+    if (messages.length > 0 && onActiveItemChange) {
+      let foundItems = [];
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].text.startsWith('[OFERTA]')) {
+          try {
+            const data = JSON.parse(messages[i].text.replace('[OFERTA] ', ''));
+            foundItems = data.items && data.items.length > 0 ? data.items : [{ description: data.description, price: data.amount || 0 }];
+            break;
+          } catch(e) {}
+        }
+      }
+      onActiveItemChange(foundItems);
+    }
+  }, [messages, onActiveItemChange]);
 
   useEffect(() => {
     scrollToBottom();
@@ -259,7 +273,9 @@ export default function ChatPage() {
     const cost = parseFloat(costStr);
     if (cost < 0) return;
 
-    const newItems = reqData.items ? [...reqData.items, { description: 'Delivery', price: cost }] : [{description: 'Repuestos', price: reqData.price}, {description: 'Delivery', price: cost}];
+    const newItems = reqData.items && reqData.items.length > 0 
+      ? [...reqData.items, { description: 'Delivery', price: cost }] 
+      : [{ description: reqData.description || 'Repuestos', price: reqData.price }, { description: 'Delivery', price: cost }];
     const combinedDesc = newItems.map(i => `${i.description} ($${parseFloat(i.price).toFixed(2)})`).join(' + ');
     const newTotal = reqData.price + cost;
 
@@ -333,32 +349,47 @@ export default function ChatPage() {
   const partnerName = user.role === 'buyer' ? 'Vendedor' : 'Comprador';
 
   return (
-    <div className="animate-slide-up" style={{ flex: 1, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
+    <div className="animate-fade-in" style={{
+      flex: 1,
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'var(--bg-main)',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
       
-      {/* Header */}
-      <div className="card-panel" style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '1rem', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderBottom: 'none' }}>
-        <button onClick={() => navigate(-1)} className="btn-secondary" style={{ padding: '0.5rem', borderRadius: '50%' }}>
+      {/* Header Premium */}
+      <div style={{ 
+        padding: '1.2rem 1.5rem', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '1.2rem', 
+        background: 'var(--bg-panel)',
+        backdropFilter: 'var(--glass-blur)',
+        WebkitBackdropFilter: 'var(--glass-blur)',
+        borderBottom: '1px solid var(--border-color)',
+        zIndex: 10,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.02)'
+      }}>
+        <button onClick={() => navigate('/inbox')} className="btn-secondary hover-scale" style={{ padding: '0.6rem', borderRadius: '50%', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <ArrowLeft size={20} />
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#e3e6e6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {user.role === 'buyer' ? <Store size={20} color='var(--text-muted)' /> : <User size={20} color='var(--text-muted)' />}
+        
+        <div style={{ position: 'relative' }}>
+          <div style={{ width: 48, height: 48, background: 'linear-gradient(135deg, #0f172a, #1e293b)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+            {user.role === 'buyer' ? <Store size={22} color="#38bdf8" /> : <User size={22} color="#38bdf8" />}
           </div>
-          <div>
-            <h3 
-              onClick={() => user.role === 'buyer' && navigate(`/store/${partnerId}`)}
-              style={{ fontSize: '1.1rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: user.role === 'buyer' ? 'pointer' : 'default', textDecoration: user.role === 'buyer' ? 'underline' : 'none', color: 'var(--text-main)' }}
-              title={user.role === 'buyer' ? "Visitar Vitrina Pública" : ""}
-            >
-              {partnerName} (ID: {partnerId})
-              {user.role === 'buyer' && sellerRating !== null && (
-                <span style={{ fontSize: '0.85rem', background: '#fffcf2', border: '1px solid #f3d078', padding: '0.1rem 0.4rem', borderRadius: '4px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                  ⭐ {sellerRating.toFixed(1)}
-                </span>
-              )}
-            </h3>
-            <span style={{ fontSize: '0.8rem', color: '#007185' }}>En línea</span>
-          </div>
+          <div style={{ position: 'absolute', bottom: 2, right: 2, width: 12, height: 12, background: '#10b981', borderRadius: '50%', border: '2px solid var(--bg-panel)', boxShadow: '0 0 0 1px rgba(16,185,129,0.3)' }} />
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            {chats ? (chats.find(c => c.id === partnerId)?.partnerName || (partnerInfo ? partnerInfo.name : 'Cargando...')) : (partnerInfo ? partnerInfo.name : 'Cargando...')}
+          </h2>
+          <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: '#10b981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            En línea ahora
+          </p>
         </div>
       </div>
 
@@ -422,7 +453,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div className="card-panel" style={{ flex: 1, borderRadius: 0, borderTop: 'none', borderBottom: 'none', padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', backgroundColor: 'var(--bg-main)' }}>
+      <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-main)', position: 'relative' }}>
         {messages.map(msg => {
           const isMe = msg.senderId === user.id;
           const isOffer = msg.text.startsWith('[OFERTA]');
@@ -432,7 +463,7 @@ export default function ChatPage() {
           const isPaymentVerified = msg.text.startsWith('[PAGO_VERIFICADO]');
 
           return (
-            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', width: '100%', marginBottom: '1.2rem' }}>
               
               {isSystem ? (
                 msg.text.includes('declinado') || msg.text.includes('cancelado') ? (
@@ -528,29 +559,56 @@ export default function ChatPage() {
                         </div>
 
                         {user.role === 'seller' ? (
-                          <button 
-                            onClick={() => handleVerifyPayment(data.orderId, msg.id)} 
-                            disabled={isPaymentVerified}
-                            style={{ 
-                              width: '100%', 
-                              background: isPaymentVerified ? '#f0fdf4' : 'var(--text-main)', 
-                              color: isPaymentVerified ? '#166534' : 'white', 
-                              border: isPaymentVerified ? '1px solid #bbf7d0' : 'none', 
-                              borderRadius: '16px', 
-                              padding: '1rem', 
-                              fontWeight: 'bold', 
-                              fontSize: '1rem',
-                              cursor: isPaymentVerified ? 'default' : 'pointer',
-                              boxShadow: isPaymentVerified ? 'none' : '0 10px 25px -5px rgba(15, 23, 42, 0.3)',
-                              transition: 'all 0.2s',
-                              display: 'flex',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              gap: '0.5rem'
-                            }}
-                          >
-                            {isPaymentVerified ? <><CheckCircle size={18} /> Verificado</> : 'Aprobar Pago'}
-                          </button>
+                          <div style={{ marginTop: '0.5rem' }}>
+                            {!isPaymentVerified ? (
+                              <button 
+                                onClick={() => handleVerifyPayment(data.orderId, msg.id)} 
+                                style={{ 
+                                  width: '100%', 
+                                  background: 'var(--text-main)', 
+                                  color: 'white', 
+                                  border: 'none', 
+                                  borderRadius: '16px', 
+                                  padding: '1rem', 
+                                  fontWeight: 'bold', 
+                                  fontSize: '1rem',
+                                  cursor: 'pointer',
+                                  boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.3)',
+                                  transition: 'all 0.2s',
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  gap: '0.5rem'
+                                }}
+                              >
+                                Aprobar Pago
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => navigate('/orders')}
+                                className="hover-scale"
+                                style={{
+                                  width: '100%',
+                                  padding: '1rem',
+                                  borderRadius: '16px',
+                                  fontWeight: 'bold',
+                                  fontSize: '1rem',
+                                  display: 'flex',
+                                  justifyContent: 'center',
+                                  alignItems: 'center',
+                                  gap: '0.6rem',
+                                  background: 'linear-gradient(135deg, var(--primary) 0%, #0284c7 100%)',
+                                  boxShadow: '0 8px 20px -6px rgba(14, 165, 233, 0.4)',
+                                  border: 'none',
+                                  color: 'white',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Package size={18} />
+                                Preparar Pedido
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <div style={{ textAlign: 'center', padding: '1rem', background: isPaymentVerified ? '#f0fdf4' : '#fffbeb', borderRadius: '16px', color: isPaymentVerified ? '#166534' : '#d97706', fontSize: '0.9rem', fontWeight: '600', border: `1px solid ${isPaymentVerified ? '#bbf7d0' : '#fde68a'}` }}>
                             {isPaymentVerified ? '¡El vendedor ha confirmado tu pago!' : 'Esperando confirmación del vendedor...'}
@@ -566,38 +624,38 @@ export default function ChatPage() {
                   return (
                     <div style={{ 
                       background: 'var(--bg-panel)', 
-                      borderRadius: '20px', 
+                      borderRadius: '16px', 
                       minWidth: '280px', 
                       maxWidth: '320px',
-                      boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.08), 0 4px 12px -4px rgba(0,0,0,0.03)', 
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.03)', 
                       overflow: 'hidden',
-                      border: '1px solid #f1f5f9',
+                      border: '1px solid var(--border-color)',
                       margin: '0.5rem 0'
                     }}>
-                      <div style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', padding: '1.2rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <CheckCircle size={14} color="white" />
+                      <div style={{ padding: '1rem 1.5rem', borderBottom: '1px dashed var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Zap size={14} color="var(--primary)" />
                         </div>
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '700', letterSpacing: '-0.3px' }}>Cotización</h4>
+                        <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: '600', letterSpacing: '-0.2px' }}>Cotización</h4>
                       </div>
                       
-                      <div style={{ padding: '1.5rem' }}>
+                      <div style={{ padding: '1.2rem 1.5rem' }}>
                         {offer.items && offer.items.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', marginBottom: '1.5rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.2rem' }}>
                             {offer.items.map((i, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                                 <span style={{ flex: 1, paddingRight: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.description}</span>
-                                <span style={{ fontWeight: '600', color: 'var(--text-main)' }}>${parseFloat(i.price).toFixed(2)}</span>
+                                <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>${parseFloat(i.price).toFixed(2)}</span>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem', lineHeight: '1.5' }}>{offer.description}</p>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.2rem', lineHeight: '1.5' }}>{offer.description}</p>
                         )}
 
-                        <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '1.2rem', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: '500', marginBottom: '0.2rem' }}>Total a pagar</span>
-                          <span style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-1px', lineHeight: 1 }}>
+                        <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>Total</span>
+                          <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.5px', lineHeight: 1 }}>
                             ${offer.price.toFixed(2)}
                           </span>
                         </div>
@@ -618,19 +676,19 @@ export default function ChatPage() {
                             disabled={loading} 
                             style={{ 
                               width: '100%', 
-                              background: 'var(--text-main)', 
+                              background: 'var(--primary)', 
                               color: 'white', 
                               border: 'none', 
-                              borderRadius: '12px', 
-                              padding: '1rem', 
+                              borderRadius: '24px', 
+                              padding: '0.8rem', 
                               fontWeight: '600', 
-                              fontSize: '0.95rem',
+                              fontSize: '0.9rem',
                               cursor: loading ? 'not-allowed' : 'pointer',
-                              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
-                              transition: 'transform 0.1s'
+                              boxShadow: '0 4px 12px rgba(56, 189, 248, 0.2)',
+                              transition: 'all 0.2s'
                             }}
-                            onMouseDown={e => e.currentTarget.style.transform = 'scale(0.98)'}
-                            onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                            onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+                            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                           >
                             {loading ? 'Procesando...' : (offer.items && offer.items.some(i => i.description.toLowerCase() === 'delivery') ? 'Pagar ahora' : 'Procesar Compra')}
                           </button>
@@ -705,19 +763,23 @@ export default function ChatPage() {
                 </div>
               ) : (
                 <div style={{ 
-                  background: isMe ? 'var(--primary)' : '#ffffff', 
+                  background: isMe ? 'var(--primary)' : 'var(--bg-panel)', 
                   color: isMe ? '#ffffff' : 'var(--text-main)',
                   border: isMe ? 'none' : '1px solid var(--border-color)',
-                  padding: '0.8rem 1.2rem', 
-                  borderRadius: '18px', 
-                  borderBottomRightRadius: isMe ? '4px' : '18px',
-                  borderBottomLeftRadius: isMe ? '18px' : '4px',
+                  padding: '1rem 1.4rem', 
+                  borderRadius: '24px', 
+                  borderBottomRightRadius: isMe ? '4px' : '24px',
+                  borderBottomLeftRadius: isMe ? '24px' : '4px',
                   maxWidth: '75%',
                   wordBreak: 'break-word',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.02)',
-                  margin: '0.2rem 0'
+                  boxShadow: isMe ? '0 8px 16px -4px rgba(56,189,248,0.2)' : '0 4px 10px rgba(0,0,0,0.02)',
+                  margin: '0.4rem 0',
+                  position: 'relative'
                 }}>
-                  <p style={{ fontSize: '0.95rem', margin: 0, lineHeight: '1.4' }}>{msg.text}</p>
+                  <p style={{ fontSize: '1rem', margin: 0, lineHeight: '1.5' }}>{msg.text}</p>
+                  <span style={{ fontSize: '0.65rem', opacity: 0.7, position: 'absolute', bottom: '-20px', [isMe ? 'right' : 'left']: '10px', color: 'var(--text-muted)' }}>
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
               )}
             </div>
@@ -727,17 +789,23 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="card-panel" style={{ padding: '1rem', borderTopLeftRadius: 0, borderTopRightRadius: 0, borderTop: 'none', background: 'var(--bg-main)' }}>
-        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+      <div style={{ 
+        padding: '1.2rem', 
+        background: 'var(--bg-panel)',
+        borderTop: '1px solid var(--border-color)',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.02)',
+        zIndex: 10
+      }}>
+        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '0.8rem', alignItems: 'flex-end', background: 'var(--bg-main)', padding: '0.6rem', borderRadius: '24px', border: '1px solid var(--border-color)' }}>
           
-          <label style={{ cursor: uploadingImage ? 'wait' : 'pointer', padding: '0.5rem', color: 'var(--text-muted)', opacity: uploadingImage ? 0.5 : 1 }}>
+          <label className="hover-scale" style={{ cursor: uploadingImage ? 'wait' : 'pointer', padding: '0.6rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
             <input type="file" style={{ display: 'none' }} accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} />
-            <Paperclip size={20} />
+            <Paperclip size={22} />
           </label>
 
           {user.role === 'seller' && (
-            <button type="button" onClick={() => setShowOfferForm(!showOfferForm)} className="btn-secondary" style={{ padding: '0.5rem 1rem', borderRadius: '20px', fontSize: '0.9rem' }}>
-              Cotizar
+            <button type="button" onClick={() => setShowOfferForm(!showOfferForm)} className="btn-secondary hover-scale" style={{ padding: '0.6rem 1.2rem', borderRadius: '18px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', border: 'none', background: 'rgba(56, 189, 248, 0.1)', color: 'var(--primary)' }}>
+              <Zap size={16} fill="var(--primary)" /> Cotizar
             </button>
           )}
 
@@ -745,11 +813,18 @@ export default function ChatPage() {
             type="text" 
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Escribe un mensaje..."
-            className="input-field"
-            style={{ flex: 1, marginBottom: 0, borderRadius: '20px' }}
+            placeholder="Escribe tu mensaje aquí..."
+            style={{ flex: 1, background: 'transparent', border: 'none', padding: '0.6rem 0.5rem', outline: 'none', fontSize: '1rem', color: 'var(--text-main)', minHeight: '24px' }}
           />
-          <button type="submit" className="btn-primary" style={{ borderRadius: '50%', width: 42, height: 42, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+
+          <button type="submit" disabled={!inputText.trim() && !uploadingImage} className="hover-scale" style={{ 
+            background: inputText.trim() ? 'var(--primary)' : 'var(--border-color)',
+            color: 'white',
+            borderRadius: '50%', width: 44, height: 44, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', cursor: inputText.trim() ? 'pointer' : 'not-allowed',
+            transition: 'all 0.3s',
+            boxShadow: inputText.trim() ? '0 4px 12px rgba(56, 189, 248, 0.3)' : 'none'
+          }}>
             <Send size={18} style={{ marginLeft: '-2px' }} />
           </button>
         </form>
@@ -862,7 +937,7 @@ export default function ChatPage() {
           </div>
         </div>
       )}
-
+      
     </div>
   );
 }

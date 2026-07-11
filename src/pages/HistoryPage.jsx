@@ -2,15 +2,24 @@ import React from 'react';
 import { useAppContext } from '../context/AppContext';
 import { History, Search, Bell, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import ModuleHero from '../components/ModuleHero';
 
 export default function HistoryPage() {
   const { searchHistory, notifications, user } = useAppContext();
 
+  const isImmersive = ['buyer', 'seller'].includes(user.role);
+
   return (
     <div className="animate-slide-up" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <h2 style={{ fontSize: '1.8rem', marginBottom: '1.5rem', fontWeight: 'bold' }}>
-        {user.role === 'buyer' ? 'Historial de Búsquedas' : 'Historial de Notificaciones'}
-      </h2>
+      <ModuleHero 
+        eyebrow="Mi cuenta"
+        title="Historial de Actividad"
+        subtitle="Registro de notificaciones, inicios de sesión y alertas de seguridad."
+        iconName="default"
+        fullBleed={isImmersive}
+      />
+      
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isImmersive ? '0 2rem 2rem' : 0, maxWidth: isImmersive ? 1200 : 'none', margin: '0 auto', width: '100%' }}>
 
       {user.role === 'buyer' && searchHistory.length === 0 ? (
         <div className="card-panel flex-center" style={{ padding: '4rem', flexDirection: 'column', color: 'var(--text-muted)' }}>
@@ -79,6 +88,7 @@ export default function HistoryPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

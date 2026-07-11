@@ -37,6 +37,15 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.userRole)) {
+      return res.status(403).json({ error: 'Acceso denegado: No tienes los permisos necesarios' });
+    }
+    next();
+  };
+};
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, 'uploads/'),
@@ -81,6 +90,9 @@ app.post('/api/auth/login', async (req, res) => {
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) return res.status(400).json({ error: 'Contraseña incorrecta' });
 
+    if (user.deletedAt) return res.status(403).json({ error: 'Esta cuenta ha sido eliminada' });
+    if (user.suspendedAt) return res.status(403).json({ error: 'Tu cuenta está suspendida. Contacta al administrador.' });
+
     const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
     const { password: _, ...userWithoutPassword } = user;
     res.json({ token, user: userWithoutPassword });
@@ -103,12 +115,26 @@ app.get('/api/users/:id', async (req, res) => {
   try {
     const user = await prisma.user.findUnique({ 
       where: { id: parseInt(req.params.id) },
-      select: { id: true, name: true, role: true, address: true, phone: true }
+      select: { id: true, name: true, role: true, address: true, phone: true, email: true }
     });
     if (!user) return res.status(404).json({ error: 'No encontrado' });
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener usuario' });
+  }
+});
+
+app.put('/api/users/me', verifyToken, async (req, res) => {
+  const { name, email, phone, address } = req.body;
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: req.userId },
+      data: { name, email, phone, address }
+    });
+    const { password: _, ...userWithoutPassword } = updatedUser;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al actualizar perfil', details: error.message });
   }
 });
 
@@ -437,8 +463,11 @@ app.get('/api/products', async (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   try {
     const products = await prisma.product.findMany({
-      orderBy: { createdAt: 'desc' }
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: { seller: { select: { id: true, name: true, email: true } } }
     });
+
     const formatted = products.map(p => ({
       ...p,
       images: p.images ? JSON.parse(p.images) : []
@@ -451,6 +480,17 @@ app.get('/api/products', async (req, res) => {
 
 app.post('/api/products', async (req, res) => {
   const { name, desc, category, price, stock, discount, image, images } = req.body;
+
+  // Captura opcional del vendedor: si viene un token válido, vinculamos el producto a su autor.
+  let sellerId = null;
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      sellerId = decoded.id;
+    } catch (_) { /* token inválido: se guarda sin vendedor */ }
+  }
+
   try {
     const product = await prisma.product.create({
       data: {
@@ -461,7 +501,8 @@ app.post('/api/products', async (req, res) => {
         stock: parseInt(stock) || 1,
         discount: parseInt(discount) || 0,
         image,
-        images: images ? JSON.stringify(images) : null
+        images: images ? JSON.stringify(images) : null,
+        sellerId
       }
     });
     res.json({ ...product, images: images || [] });
@@ -493,13 +534,130 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', verifyToken, requireRole(['seller', 'admin']), async (req, res) => {
   const id = parseInt(req.params.id);
   try {
-    await prisma.product.delete({ where: { id } });
+    await prisma.product.update({ 
+      where: { id },
+      data: { deletedAt: new Date() }
+    });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Error al eliminar producto' });
+  }
+});
+
+
+// ==========================================
+// RUTAS DE ADMINISTRACIÓN
+// ==========================================
+app.get('/api/admin/stats', verifyToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const totalUsers = await prisma.user.count({ where: { deletedAt: null } });
+    const totalOrders = await prisma.order.count({ where: { deletedAt: null } });
+    
+    const orders = await prisma.order.findMany({ where: { deletedAt: null } });
+    const totalRevenue = orders.filter(o => ['Pagado', 'En Preparación', 'Enviado', 'Entregado'].includes(o.status)).reduce((sum, o) => sum + o.price, 0);
+
+    // Crecimiento real: nuevos usuarios y órdenes por mes en los últimos 6 meses.
+    const allUsers = await prisma.user.findMany({ where: { deletedAt: null }, select: { createdAt: true } });
+    const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const now = new Date();
+    const chartData = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const inMonth = (fecha) => {
+        const f = new Date(fecha);
+        return f.getFullYear() === y && f.getMonth() === m;
+      };
+      chartData.push({
+        name: MESES[m],
+        Usuarios: allUsers.filter(u => inMonth(u.createdAt)).length,
+        Ordenes: orders.filter(o => inMonth(o.createdAt)).length
+      });
+    }
+
+    res.json({ totalUsers, totalOrders, totalRevenue, chartData });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener estadísticas de admin' });
+  }
+});
+
+app.get('/api/admin/users', verifyToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, name: true, email: true, role: true, phone: true,
+        createdAt: true, suspendedAt: true,
+        _count: { select: { buyerOrders: true, sellerOrders: true, products: true } }
+      }
+    });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+});
+
+// Cambiar el rol de un usuario
+app.put('/api/admin/users/:id/role', verifyToken, requireRole(['admin']), async (req, res) => {
+  const id = parseInt(req.params.id);
+  const { role } = req.body;
+  const ROLES = ['buyer', 'seller', 'admin'];
+  if (!ROLES.includes(role)) return res.status(400).json({ error: 'Rol inválido' });
+  if (id === req.userId) return res.status(400).json({ error: 'No puedes cambiar tu propio rol' });
+  try {
+    const user = await prisma.user.update({ where: { id }, data: { role } });
+    res.json({ id: user.id, role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al cambiar el rol' });
+  }
+});
+
+// Suspender o reactivar un usuario (toggle)
+app.put('/api/admin/users/:id/suspend', verifyToken, requireRole(['admin']), async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (id === req.userId) return res.status(400).json({ error: 'No puedes suspenderte a ti mismo' });
+  try {
+    const current = await prisma.user.findUnique({ where: { id }, select: { suspendedAt: true } });
+    if (!current) return res.status(404).json({ error: 'Usuario no encontrado' });
+    const suspendedAt = current.suspendedAt ? null : new Date();
+    const user = await prisma.user.update({ where: { id }, data: { suspendedAt } });
+    res.json({ id: user.id, suspendedAt: user.suspendedAt });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al suspender el usuario' });
+  }
+});
+
+// Eliminar un usuario (soft-delete)
+app.delete('/api/admin/users/:id', verifyToken, requireRole(['admin']), async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (id === req.userId) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+  try {
+    await prisma.user.update({ where: { id }, data: { deletedAt: new Date() } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al eliminar el usuario' });
+  }
+});
+
+// Todas las órdenes de la plataforma (vista global del admin)
+app.get('/api/admin/orders', verifyToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        buyer: { select: { id: true, name: true } },
+        seller: { select: { id: true, name: true } },
+      },
+    });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener las órdenes' });
   }
 });
 

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
-import { Package, Truck, CheckCircle, Clock, Archive } from 'lucide-react';
+import { Package, Truck, CheckCircle, Clock, Archive, Search, Inbox, FileText } from 'lucide-react';
 import api from '../services/api';
+import ModuleHero from '../components/ModuleHero';
 
 export default function OrdersPage() {
   const { user, socket } = useAppContext();
@@ -16,7 +18,8 @@ export default function OrdersPage() {
   const [viewingCapture, setViewingCapture] = useState(null);
   const [viewingOrder, setViewingOrder] = useState(null);
   const [activeTab, setActiveTab] = useState('pending_verification');
-  const [searchQuery, setSearchQuery] = useState('');
+  const location = useLocation();
+  const [searchQuery, setSearchQuery] = useState(location.state?.searchQuery || '');
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -202,8 +205,8 @@ export default function OrdersPage() {
       );
     });
 
-    // Pedido seleccionado (por defecto el primero si no hay uno seleccionado)
-    const selectedOrder = viewingOrder || filteredOrders[0] || null;
+    // Pedido seleccionado (ahora solo si se hace clic para abrir el modal slide-over)
+    const selectedOrder = viewingOrder;
 
     const getStatusInfo = (status) => {
       switch (status) {
@@ -223,338 +226,352 @@ export default function OrdersPage() {
     };
 
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: '0px', flex: 1, background: 'var(--bg-panel)', borderRadius: '16px', border: '1px solid var(--border-color)', overflow: 'hidden', height: 'calc(100vh - 200px)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', flex: 1, height: 'calc(100vh - 200px)' }}>
         
-        {/* COLUMNA IZQUIERDA: LISTADO */}
-        <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.01)' }}>
-          {/* Header de listado */}
-          <div style={{ padding: '1.2rem', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem 0.7rem', alignItems: 'center' }}>
-              <span style={{ opacity: 0.5, fontSize: '0.85rem' }}>🔍</span>
-              <input 
-                type="text" 
-                placeholder="Buscar por ID, artículo o usuario..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none', width: '100%', fontSize: '0.8rem' }} 
-              />
+        {/* TOP BAR: SEARCH & TABS */}
+        <div className="card-panel" style={{ padding: '1.2rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Tabs */}
+          {user.role === 'seller' && (
+            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              {tabs.map(tab => {
+                const count = getTabOrders(tab.id).length;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => { setActiveTab(tab.id); setViewingOrder(null); }}
+                    style={{
+                      padding: '0.5rem 1rem', borderRadius: '24px', border: 'none',
+                      background: isActive ? 'var(--text-main)' : 'var(--bg-main)',
+                      color: isActive ? 'var(--bg-panel)' : 'var(--text-muted)',
+                      fontWeight: isActive ? '700' : '600', fontSize: '0.8rem',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      transition: 'all 0.2s', whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {React.cloneElement(tab.icon, { size: 16, color: isActive ? 'var(--bg-panel)' : 'var(--text-muted)' })}
+                    <span>{tab.title}</span>
+                    {count > 0 && (
+                      <span style={{ fontSize: '0.7rem', background: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.08)', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>{count}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            
-            {/* Tabs para vendedor */}
-            {user.role === 'seller' && (
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(2, 1fr)', 
-                gap: '6px', 
-                width: '100%',
-                boxSizing: 'border-box'
-              }}>
-                {tabs.map(tab => {
-                  const count = getTabOrders(tab.id).length;
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => { setActiveTab(tab.id); setViewingOrder(null); }}
-                      style={{
-                        padding: '0.6rem 0.8rem',
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-color)',
-                        background: isActive ? 'var(--primary)' : 'var(--bg-panel)',
-                        color: isActive ? 'white' : 'var(--text-main)',
-                        fontWeight: '700',
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.5rem',
-                        transition: 'all 0.15s',
-                        boxShadow: isActive ? '0 4px 12px rgba(14,165,233,0.15)' : 'none',
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        {React.cloneElement(tab.icon, { size: 14, color: isActive ? 'white' : 'var(--text-muted)' })}
-                        <span>{tab.title}</span>
-                      </div>
-                      <span style={{ 
-                        fontSize: '0.72rem', 
-                        background: isActive ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.05)', 
-                        color: isActive ? 'white' : 'var(--text-muted)',
-                        padding: '0.1rem 0.4rem', 
-                        borderRadius: '6px',
-                        fontWeight: 'bold',
-                        minWidth: '15px',
-                        textAlign: 'center'
-                      }}>
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Lista scrollable */}
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            {filteredOrders.length === 0 ? (
-              <div style={{ padding: '3rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '0.5rem' }}>📦</span>
-                <p style={{ fontSize: '0.8rem', margin: 0 }}>No hay pedidos aquí.</p>
-              </div>
-            ) : (
-              filteredOrders.map(order => {
-                const isSelected = selectedOrder?.id === order.id;
+          {/* Search */}
+          <div style={{ display: 'flex', gap: '0.6rem', background: 'var(--bg-main)', borderRadius: '12px', padding: '0.6rem 1rem', alignItems: 'center', border: '1px solid var(--border-color)', minWidth: '280px', flex: 1, maxWidth: '400px' }}>
+            <Search size={16} color="var(--text-muted)" />
+            <input 
+              type="text" placeholder="Buscar ID o usuario..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              style={{ border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none', width: '100%', fontSize: '0.85rem' }} 
+            />
+          </div>
+        </div>
+
+        {/* ORDER GRID */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {filteredOrders.length === 0 ? (
+            <div className="card-panel flex-center" style={{ flexDirection: 'column', gap: '1rem', padding: '4rem 2rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '50%', color: 'var(--primary)' }}><Inbox size={40} /></div>
+              <h3 style={{ margin: 0, fontSize: '1.2rem' }}>No hay pedidos en esta sección</h3>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', alignContent: 'start', paddingBottom: '2rem' }}>
+              {filteredOrders.map(order => {
                 const { items } = parseOrderData(order.item);
                 const partnerName = user.role === 'seller' ? (order.buyer?.name || 'Comprador') : (order.seller?.name || 'Empresa');
                 const statusInfo = getStatusInfo(order.status);
                 return (
-                  <div
-                    key={order.id}
-                    onClick={() => setViewingOrder(order)}
-                    style={{
-                      padding: '1.1rem',
-                      borderBottom: '1px solid var(--border-color)',
-                      cursor: 'pointer',
-                      background: isSelected ? 'rgba(var(--primary-rgb, 13, 138, 188), 0.05)' : 'transparent',
-                      borderLeft: isSelected ? '3px solid var(--primary)' : '3px solid transparent',
-                      transition: 'all 0.15s',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.35rem'
+                  <div 
+                    key={order.id} 
+                    className="card-panel" 
+                    onClick={() => setViewingOrder(order)} 
+                    style={{ 
+                      padding: '1.5rem', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', gap: '1rem', 
+                      border: '1px solid var(--border-color)'
                     }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--primary)', fontFamily: 'monospace' }}>#{order.id}</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{new Date(order.createdAt).toLocaleDateString()}</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--primary)', fontFamily: 'monospace', background: 'rgba(var(--primary-rgb, 13, 138, 188), 0.1)', padding: '0.2rem 0.5rem', borderRadius: '6px' }}>#{order.id}</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{new Date(order.createdAt).toLocaleDateString()}</span>
                     </div>
-                    <div style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-main)' }}>{partnerName}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{items}</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
-                      <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--text-main)' }}>${parseFloat(order.price).toFixed(2)}</span>
-                      <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: statusInfo.bg, color: statusInfo.color, fontWeight: 'bold' }}>
-                        {statusInfo.text}
+                    <div>
+                      <div style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-main)' }}>{partnerName}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{items}</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 'auto', paddingTop: '1rem', borderTop: '1px dashed var(--border-color)' }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)' }}>Total</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)' }}>${parseFloat(order.price).toFixed(2)}</span>
+                          {order.review && (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#d97706', background: '#fef3c7', padding: '0.2rem 0.5rem', borderRadius: '6px' }}>
+                              ⭐ {order.review.rating}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', borderRadius: '8px', background: statusInfo.bg, color: statusInfo.color, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        {statusInfo.icon} {statusInfo.text}
                       </span>
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* COLUMNA DERECHA: DETALLE COMPLETO */}
-        <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', background: 'var(--bg-panel)' }}>
-          {selectedOrder ? (
-            <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.8rem', flex: 1 }}>
-              
-              {/* Encabezado del Detalle */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
-                    {user.role === 'seller' ? 'Detalle de Venta' : 'Detalle de Compra'}
-                  </span>
-                  <h2 style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-main)', margin: '0.2rem 0 0 0', fontFamily: 'monospace' }}>PEDIDO #{selectedOrder.id}</h2>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>{new Date(selectedOrder.createdAt).toLocaleString()}</span>
-                  <span style={{ 
-                    fontSize: '0.75rem', fontWeight: 'bold',
-                    padding: '0.25rem 0.6rem', borderRadius: '20px',
-                    background: getStatusInfo(selectedOrder.status).bg,
-                    color: getStatusInfo(selectedOrder.status).color,
-                    border: '1px solid transparent'
-                  }}>
-                    {getStatusInfo(selectedOrder.status).text}
-                  </span>
-                </div>
-              </div>
-
-              {/* Timeline de Seguimiento */}
-              {renderTrackingTimeline(selectedOrder.status)}
-
-              {/* Grid de Información */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
-                
-                {/* Panel Partner */}
-                <div style={{ background: 'var(--bg-main)', borderRadius: '12px', padding: '1rem', border: '1px solid var(--border-color)' }}>
-                  <h3 style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.6rem', fontWeight: 'bold' }}>
-                    {user.role === 'seller' ? 'Información del Comprador' : 'Información del Vendedor'}
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                    <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-                      {user.role === 'seller' ? selectedOrder.buyer?.name : selectedOrder.seller?.name}
-                    </div>
-                    <div style={{ color: 'var(--text-muted)' }}>📞 {parseOrderData(selectedOrder.item).deliveryInfo?.phone || (user.role === 'seller' ? selectedOrder.buyer?.phone : selectedOrder.seller?.phone) || 'No registrado'}</div>
-                    <div style={{ color: 'var(--text-muted)', lineHeight: '1.4' }}>📍 {parseOrderData(selectedOrder.item).deliveryInfo?.address || (user.role === 'seller' ? selectedOrder.buyer?.address : selectedOrder.seller?.address) || 'Retiro en persona'}</div>
-                    {parseOrderData(selectedOrder.item).deliveryInfo?.note && (
-                      <div style={{ fontStyle: 'italic', color: '#92400e', background: '#fef3c7', padding: '0.3rem 0.6rem', borderRadius: '6px', marginTop: '0.2rem', fontSize: '0.75rem' }}>
-                        "{parseOrderData(selectedOrder.item).deliveryInfo.note}"
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Panel Pago */}
-                <div style={{ background: 'var(--bg-main)', borderRadius: '12px', padding: '1rem', border: '1px solid var(--border-color)' }}>
-                  <h3 style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.6rem', fontWeight: 'bold' }}>Detalle de Pago</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
-                    <div>
-                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Método</span>
-                      <strong style={{ color: 'var(--text-main)', textTransform: 'uppercase' }}>{selectedOrder.paymentData?.method || 'N/A'}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.7rem' }}>Referencia de Pago</span>
-                      <strong style={{ color: 'var(--text-main)', fontFamily: 'monospace' }}>{selectedOrder.paymentData?.reference || 'N/A'}</strong>
-                    </div>
-                    {selectedOrder.paymentData?.imageUrl && (
-                      <button 
-                        onClick={() => setViewingCapture(selectedOrder)}
-                        style={{ marginTop: '0.2rem', width: '100%', padding: '0.4rem', background: '#fffbeb', border: '1px solid #fde68a', color: '#d97706', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.7rem' }}
-                      >
-                        Ver Capture de Pago
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Detalle de Artículos */}
-              <div>
-                <h3 style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.6rem', fontWeight: 'bold' }}>Artículos</h3>
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--bg-main)', overflow: 'hidden' }}>
-                  {(() => {
-                    const { items: cleanItems } = parseOrderData(selectedOrder.item);
-                    const itemsList = cleanItems.split(' + ');
-                    return itemsList.map((it, idx) => {
-                      const match = it.trim().match(/(.+)\s\(\$(\d+\.?\d*)\)/);
-                      return (
-                        <div key={idx} style={{ 
-                          padding: '0.7rem 1.1rem', 
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                          borderBottom: idx < itemsList.length - 1 ? '1px solid var(--border-color)' : 'none',
-                        }}>
-                          <span style={{ fontSize: '0.82rem', color: 'var(--text-main)' }}>
-                            {match ? match[1].trim() : it.trim()}
-                          </span>
-                          {match && (
-                            <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-main)', fontFamily: 'monospace' }}>
-                              ${parseFloat(match[2]).toFixed(2)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-
-              {/* Panel de Control y Total */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-main)', borderRadius: '12px', padding: '1.2rem', border: '1px solid var(--border-color)', marginTop: '1.5rem', flexShrink: 0 }}>
-                <div>
-                  <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>Monto Total</span>
-                  <span style={{ fontSize: '1.6rem', fontWeight: '900', color: 'var(--text-main)' }}>${parseFloat(selectedOrder.price).toFixed(2)}</span>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '0.6rem' }}>
-                  {user.role === 'seller' ? (
-                    <>
-                      {selectedOrder.status === 'pending_verification' && (
-                        <button 
-                          onClick={() => setViewingCapture(selectedOrder)}
-                          style={{ padding: '0.7rem 1.2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(16, 185, 129, 0.15)' }}
-                        >
-                          Verificar y Aprobar Pago
-                        </button>
-                      )}
-                      {selectedOrder.status === 'Pagado' && (
-                        <button 
-                          onClick={() => updateOrderStatus(selectedOrder.id, 'En Preparación')}
-                          style={{ padding: '0.7rem 1.2rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(13, 138, 188, 0.15)' }}
-                        >
-                          Preparar Pedido
-                        </button>
-                      )}
-                      {selectedOrder.status === 'En Preparación' && (
-                        <button 
-                          onClick={() => updateOrderStatus(selectedOrder.id, 'Enviado')}
-                          style={{ padding: '0.7rem 1.2rem', background: 'var(--text-main)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer' }}
-                        >
-                          Despachar Envío
-                        </button>
-                      )}
-                      {selectedOrder.status === 'Enviado' && (
-                        <div style={{ color: 'var(--primary)', background: 'rgba(14,165,233,0.08)', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                          Enviado · Esperando confirmación de entrega
-                        </div>
-                      )}
-                      {selectedOrder.status === 'Entregado' && (
-                        <div style={{ color: '#166534', background: '#f0fdf4', padding: '0.5rem 1rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                          ✓ Pedido Entregado y Recibido
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {selectedOrder.status === 'Enviado' && (
-                        <button 
-                          onClick={() => updateOrderStatus(selectedOrder.id, 'Entregado')}
-                          style={{ padding: '0.7rem 1.2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(16, 185, 129, 0.15)' }}
-                        >
-                          ✓ Confirmar Recepción
-                        </button>
-                      )}
-                      {selectedOrder.status === 'Entregado' && !selectedOrder.review && (
-                        <button 
-                          onClick={() => setReviewOrder(selectedOrder)} 
-                          className="btn-primary" 
-                          style={{ padding: '0.7rem 1.2rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}
-                        >
-                          Calificar Vendedor
-                        </button>
-                      )}
-                      {selectedOrder.review && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#d97706', fontWeight: 'bold', fontSize: '0.8rem', background: '#fffbeb', padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #fde68a' }}>
-                          ⭐ {selectedOrder.review.rating} / 5 Calificado
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '1rem', padding: '3rem' }}>
-              <span style={{ fontSize: '3rem' }}>🧾</span>
-              <h3 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 'bold' }}>Detalle del Pedido</h3>
-              <p style={{ fontSize: '0.8rem', margin: 0, textAlign: 'center' }}>Selecciona un pedido de la lista para ver su información y gestionar su estado.</p>
+              })}
             </div>
           )}
         </div>
 
+        {/* SLIDE-OVER MODAL FOR DETAILS */}
+        {selectedOrder && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', transition: 'all 0.3s' }} onClick={() => setViewingOrder(null)}>
+            <div className="card-panel animate-slide-left" style={{ width: '100%', maxWidth: '580px', height: '100%', margin: 0, borderRadius: '24px 0 0 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', padding: 0, background: 'var(--bg-panel)', boxShadow: '-10px 0 40px rgba(0,0,0,0.1)' }} onClick={e => e.stopPropagation()}>
+              
+              {/* Header Slide-Over */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '2.5rem 3rem 1.5rem', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0, zIndex: 10, background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(8px)' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-main)', margin: '0', letterSpacing: '-0.5px' }}>Pedido #{selectedOrder.id}</h2>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.4rem', fontWeight: '500' }}>
+                    {user.role === 'seller' ? 'Venta a ' + selectedOrder.buyer?.name : 'Compra a ' + selectedOrder.seller?.name}
+                  </span>
+                </div>
+                <button onClick={() => setViewingOrder(null)} style={{ background: 'var(--bg-main)', border: '1px solid var(--border-color)', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-main)', fontSize: '1.2rem', transition: 'all 0.2s', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>✕</button>
+              </div>
+
+              <div style={{ padding: '2rem 3rem 4rem', display: 'flex', flexDirection: 'column', gap: '3rem', flex: 1 }}>
+                
+                {/* Timeline de Seguimiento */}
+                <div style={{ background: 'transparent' }}>
+                  {renderTrackingTimeline(selectedOrder.status)}
+                </div>
+
+                {/* Grid de Información */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5rem' }}>
+                  
+                  {/* Panel Entrega */}
+                  <div>
+                    <h3 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '1.2rem', fontWeight: '600' }}>
+                      Datos de Entrega
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', fontSize: '0.95rem' }}>
+                      <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                        {user.role === 'seller' ? selectedOrder.buyer?.name : selectedOrder.seller?.name}
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span style={{opacity: 0.6}}>📞</span> {parseOrderData(selectedOrder.item).deliveryInfo?.phone || (user.role === 'seller' ? selectedOrder.buyer?.phone : selectedOrder.seller?.phone) || 'No registrado'}
+                      </div>
+                      <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'flex-start', gap: '0.6rem', lineHeight: '1.4' }}>
+                        <span style={{opacity: 0.6}}>📍</span> 
+                        <span>{parseOrderData(selectedOrder.item).deliveryInfo?.address || (user.role === 'seller' ? selectedOrder.buyer?.address : selectedOrder.seller?.address) || 'Retiro en persona'}</span>
+                      </div>
+                      {parseOrderData(selectedOrder.item).deliveryInfo?.note && (
+                        <div style={{ color: 'var(--text-muted)', paddingLeft: '1.8rem', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                          "{parseOrderData(selectedOrder.item).deliveryInfo.note}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Panel Pago */}
+                  <div>
+                    <h3 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '1.2rem', fontWeight: '600' }}>Detalle de Pago</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.95rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border-color)', paddingBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Método</span>
+                        <strong style={{ color: 'var(--text-main)', textTransform: 'capitalize' }}>{selectedOrder.paymentData?.method || 'N/A'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--border-color)', paddingBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Referencia</span>
+                        <strong style={{ color: 'var(--text-main)', fontFamily: 'monospace' }}>{selectedOrder.paymentData?.reference || 'N/A'}</strong>
+                      </div>
+                      {selectedOrder.paymentData?.imageUrl && (
+                        <button 
+                          onClick={() => setViewingCapture(selectedOrder)}
+                          style={{ marginTop: '0.5rem', width: 'max-content', padding: '0.6rem 1.2rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', borderRadius: '24px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', transition: 'all 0.2s' }}
+                          onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = '#fff'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--primary)'; }}
+                        >
+                          Ver Comprobante
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Detalle de Artículos */}
+                <div>
+                  <h3 style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '1.2rem', fontWeight: '600' }}>Resumen de la Orden</h3>
+                  <div style={{ background: 'var(--bg-main)', borderRadius: '16px', padding: '1.5rem' }}>
+                    {(() => {
+                      const { items: cleanItems } = parseOrderData(selectedOrder.item);
+                      const itemsList = cleanItems.split(' + ');
+                      return itemsList.map((it, idx) => {
+                        const match = it.trim().match(/(.+)\s\(\$(\d+\.?\d*)\)/);
+                        return (
+                          <div key={idx} style={{ 
+                            padding: '1rem 0', 
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            borderBottom: idx < itemsList.length - 1 ? '1px dashed var(--border-color)' : 'none',
+                          }}>
+                            <span style={{ fontSize: '0.95rem', color: 'var(--text-main)', fontWeight: '500' }}>
+                              {match ? match[1].trim() : it.trim()}
+                            </span>
+                            {match && (
+                              <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                                ${parseFloat(match[2]).toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+
+                {/* Panel de Control y Total */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1rem', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '1.1rem', color: 'var(--text-muted)', fontWeight: '600' }}>Monto Total</span>
+                    <span style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-1.5px' }}>${parseFloat(selectedOrder.price).toFixed(2)}</span>
+                  </div>
+                  
+                  <div style={{ width: '100%', height: '1px', background: 'var(--border-color)' }} />
+                  
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                    {user.role === 'seller' ? (
+                      <>
+                        {selectedOrder.status === 'pending_verification' && (
+                          <button 
+                            onClick={() => setViewingCapture(selectedOrder)}
+                            style={{ padding: '0.8rem 1.8rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '24px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', boxShadow: '0 8px 20px rgba(14, 165, 233, 0.2)', transition: 'transform 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                          >
+                            Verificar y Aprobar Pago
+                          </button>
+                        )}
+                        {selectedOrder.status === 'Pagado' && (
+                          <button 
+                            onClick={() => updateOrderStatus(selectedOrder.id, 'En Preparación')}
+                            style={{ padding: '0.8rem 1.8rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '24px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', boxShadow: '0 8px 20px rgba(14, 165, 233, 0.2)', transition: 'transform 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                          >
+                            Preparar Pedido
+                          </button>
+                        )}
+                        {selectedOrder.status === 'En Preparación' && (
+                          <button 
+                            onClick={() => updateOrderStatus(selectedOrder.id, 'Enviado')}
+                            style={{ padding: '0.8rem 1.8rem', background: 'var(--text-main)', color: 'white', border: 'none', borderRadius: '24px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', transition: 'transform 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                          >
+                            Despachar Envío
+                          </button>
+                        )}
+                        {selectedOrder.status === 'Enviado' && (
+                          <div style={{ color: 'var(--primary)', background: 'rgba(14,165,233,0.08)', padding: '0.8rem 1.5rem', borderRadius: '24px', fontSize: '0.9rem', fontWeight: '700' }}>
+                            Esperando confirmación de entrega
+                          </div>
+                        )}
+                        {selectedOrder.status === 'Entregado' && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', alignItems: 'flex-end' }}>
+                            <div style={{ color: '#059669', background: '#d1fae5', padding: '0.8rem 1.5rem', borderRadius: '24px', fontSize: '0.9rem', fontWeight: '700' }}>
+                              ✓ Pedido Completado
+                            </div>
+                            {selectedOrder.review && (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', color: '#d97706', background: '#fef3c7', padding: '0.8rem 1.5rem', borderRadius: '16px', border: '1px solid #fde68a' }}>
+                                <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>
+                                  ⭐ {selectedOrder.review.rating} / 5 Recibido
+                                </div>
+                                {selectedOrder.review.comment && (
+                                  <div style={{ fontSize: '0.8rem', color: '#92400e', fontStyle: 'italic', maxWidth: '300px', textAlign: 'right' }}>
+                                    "{selectedOrder.review.comment}"
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {selectedOrder.status === 'Enviado' && (
+                          <button 
+                            onClick={() => updateOrderStatus(selectedOrder.id, 'Entregado')}
+                            style={{ padding: '0.8rem 1.8rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '24px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', boxShadow: '0 8px 20px rgba(16, 185, 129, 0.2)', transition: 'transform 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                          >
+                            ✓ Confirmar Recepción
+                          </button>
+                        )}
+                        {selectedOrder.status === 'Entregado' && !selectedOrder.review && (
+                          <button 
+                            onClick={() => {
+                               setViewingOrder(null); 
+                               setReviewOrder(selectedOrder);
+                            }} 
+                            style={{ padding: '0.8rem 1.8rem', background: 'var(--text-main)', color: 'white', border: 'none', borderRadius: '24px', fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', transition: 'transform 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                          >
+                            Calificar Vendedor
+                          </button>
+                        )}
+                        {selectedOrder.review && (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', color: '#d97706', background: '#fef3c7', padding: '0.8rem 1.5rem', borderRadius: '16px', border: '1px solid #fde68a' }}>
+                            <div style={{ fontWeight: '700', fontSize: '0.9rem' }}>
+                              ⭐ {selectedOrder.review.rating} / 5 Calificado
+                            </div>
+                            {selectedOrder.review.comment && (
+                              <div style={{ fontSize: '0.8rem', color: '#92400e', fontStyle: 'italic', maxWidth: '300px', textAlign: 'right' }}>
+                                "{selectedOrder.review.comment}"
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
+  const isImmersive = ['buyer', 'seller'].includes(user.role);
+
   return (
     <div className="animate-slide-up" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', height: 'calc(100vh - 120px)' }}>
-      <h2 style={{ fontSize: '1.6rem', fontWeight: 'bold', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        {user.role === 'buyer' ? 'Mis Pedidos' : 'Ventas y Despachos'}
-      </h2>
+      <ModuleHero
+        eyebrow={user.role === 'buyer' ? 'Mi cuenta' : 'Empresa'}
+        title={user.role === 'buyer' ? 'Mis Pedidos' : 'Ventas y Despachos'}
+        subtitle={user.role === 'buyer' ? 'Sigue el estado de tus compras.' : 'Gestiona, verifica y despacha tus pedidos.'}
+        iconName="orders"
+        fullBleed={isImmersive}
+      />
 
-      {orders.length === 0 ? (
-        <div className="card-panel flex-center" style={{ padding: '4rem', flexDirection: 'column', color: 'var(--text-muted)', flex: 1 }}>
-          <Package size={48} style={{ opacity: 0.5, marginBottom: '1rem' }} />
-          <h3>No tienes pedidos activos</h3>
-          <p>{user.role === 'buyer' ? 'Tus compras aparecerán aquí.' : 'Cuando un comprador acepte tu oferta, aparecerá aquí.'}</p>
-        </div>
-      ) : (
-        renderOrdersDashboard()
-      )}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: isImmersive ? '0 2rem 2rem' : 0, maxWidth: isImmersive ? 1200 : 'none', margin: '0 auto', width: '100%' }}>
+        {orders.length === 0 ? (
+          <div className="card-panel flex-center" style={{ padding: '4rem', flexDirection: 'column', color: 'var(--text-muted)', flex: 1 }}>
+            <Package size={48} style={{ opacity: 0.5, marginBottom: '1rem' }} />
+            <h3>No tienes pedidos activos</h3>
+            <p>{user.role === 'buyer' ? 'Tus compras aparecerán aquí.' : 'Cuando un comprador acepte tu oferta, aparecerá aquí.'}</p>
+          </div>
+        ) : (
+          renderOrdersDashboard()
+        )}
+      </div>
 
       {/* Review Modal */}
       {reviewOrder && (
@@ -562,14 +579,15 @@ export default function OrdersPage() {
           <div className="card-panel" style={{ width: '100%', maxWidth: 400, padding: 0, display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
             <div style={{ padding: '2rem', overflowY: 'auto' }}>
               <h3 style={{ marginBottom: '1rem', fontSize: '1.3rem' }}>Calificar a {reviewOrder.seller?.name}</h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Pedido #{reviewOrder.id} - {reviewOrder.item}</p>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>Pedido #{reviewOrder.id} - {parseOrderData(reviewOrder.item).items}</p>
             
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
               {[1, 2, 3, 4, 5].map(star => (
                 <span 
                   key={star} 
                   onClick={() => setRating(star)} 
-                  style={{ cursor: 'pointer', fontSize: '2rem', color: star <= rating ? '#f3d078' : '#ddd' }}
+                  style={{ cursor: 'pointer', fontSize: '2.5rem', color: star <= rating ? '#f3d078' : '#ddd', transition: 'color 0.2s' }}
+                  onMouseEnter={() => setRating(star)}
                 >
                   ★
                 </span>

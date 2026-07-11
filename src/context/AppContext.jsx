@@ -152,7 +152,8 @@ export const AppProvider = ({ children }) => {
 
     newSocket.on('connect', () => {
       newSocket.emit('join', userId);
-      if (role === 'seller') {
+      // Los admin también se unen para poder probar el simulador de roles
+      if (role === 'seller' || role === 'admin') {
         newSocket.emit('join_sellers');
       }
     });
@@ -171,32 +172,49 @@ export const AppProvider = ({ children }) => {
       }
 
       // 2. Filtrar por Zona / Geolocation (Radio)
-      if (data.zone && data.zone.includes('km')) {
-        console.log(`[Radar] Solicitud detectada en el radio permitido: ${data.zone}`);
-      } else if (data.zone && profile.zone && profile.zone !== 'Global') {
-        if (data.zone.toLowerCase() !== profile.zone.toLowerCase()) {
-          console.log(`[Radar] Solicitud filtrada: Zona '${data.zone}' no aplica.`);
+      const dataZoneStr = data.zone ? String(data.zone) : '';
+      if (dataZoneStr && dataZoneStr.includes('km')) {
+        console.log(`[Radar] Solicitud detectada en el radio permitido: ${dataZoneStr}`);
+      } else if (dataZoneStr && profile.zone && profile.zone !== 'Global') {
+        if (dataZoneStr.toLowerCase() !== profile.zone.toLowerCase()) {
+          console.log(`[Radar] Solicitud filtrada: Zona '${dataZoneStr}' no aplica.`);
           return;
         }
       }
 
-      setSellerLeads(prev => [{
-        id: data.id || Date.now(),
-        buyerId: data.buyerId,
-        user: data.buyerName,
-        item: data.query,
-        time: 'Ahora',
-        status: 'new',
-        category: data.category,
-        zone: data.zone,
-        expiresAt: data.expiresAt
-      }, ...prev]);
+      setSellerLeads(prev => {
+        const leadId = data.searchId || data.id || Date.now();
+        // Evitar duplicados: mismo id de solicitud, o la misma solicitud sin responder del mismo comprador.
+        const yaExiste = prev.some(l =>
+          l.id === leadId ||
+          (l.status === 'new' && l.buyerId === data.buyerId && l.item === data.query)
+        );
+        if (yaExiste) return prev;
+        return [{
+          id: leadId,
+          buyerId: data.buyerId,
+          user: data.buyerName,
+          item: data.query,
+          time: 'Ahora',
+          status: 'new',
+          category: data.category,
+          zone: data.zone,
+          expiresAt: data.expiresAt
+        }, ...prev];
+      });
       
-      setNotifications(prev => [{
-        text: `Nueva solicitud en tu zona (${data.zone}): ${data.query}`,
-        date: new Date().toLocaleTimeString(),
-        link: '/dashboard'
-      }, ...prev]);
+      setNotifications(prev => {
+        const text = `Nueva solicitud en tu zona (${data.zone}): ${data.query}`;
+        const timeStr = new Date().toLocaleTimeString();
+        if (prev.some(n => n.text === text && n.date.slice(0, 5) === timeStr.slice(0, 5))) {
+          return prev;
+        }
+        return [{
+          text,
+          date: timeStr,
+          link: `/chat/${data.buyerId}`
+        }, ...prev];
+      });
     });
 
     newSocket.on('receive_message', (msg) => {
@@ -254,7 +272,9 @@ export const AppProvider = ({ children }) => {
     setSearchHistory(prev => [{ term, category, zone, date: new Date().toLocaleDateString() }, ...prev]);
     // Emitir socket
     if (socket && user) {
+      const searchId = `${user.id}-${Date.now()}`; // id único para evitar leads duplicados
       socket.emit('new_search', {
+        searchId,
         buyerId: user.id,
         buyerName: user.name,
         query: term,

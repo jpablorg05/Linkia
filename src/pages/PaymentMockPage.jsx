@@ -8,7 +8,7 @@ export default function PaymentMockPage() {
   const { orderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setBuyerOrders } = useAppContext();
+  const { user, setBuyerOrders } = useAppContext();
   const [status, setStatus] = useState('idle'); // idle, processing, success
   
   const price = location.state?.price || 120.00;
@@ -54,8 +54,10 @@ export default function PaymentMockPage() {
     }
   };
 
+  const isImmersive = user && ['buyer', 'seller'].includes(user.role);
+
   return (
-    <div className="animate-slide-up" style={{ minHeight: '100%', display: 'flex', background: 'var(--bg-main)' }}>
+    <div className="animate-slide-up" style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-main)', paddingTop: isImmersive ? '80px' : 0 }}>
       
       {/* Left Column - Order Summary & Bank Details */}
       <div style={{ flex: 1, padding: '4rem', background: 'linear-gradient(135deg, var(--bg-panel) 0%, var(--bg-main) 100%)', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>

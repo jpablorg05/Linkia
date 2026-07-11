@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { Store, ShieldCheck, Clock, MapPin, Star, Package, MessageSquare, ArrowLeft, X } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import ModuleHero from '../components/ModuleHero';
 
 export default function StorefrontPage() {
   const { id } = useParams();
@@ -76,38 +77,34 @@ export default function StorefrontPage() {
     return <div className="flex-center" style={{ height: '50vh' }}>No se encontró la tienda.</div>;
   }
 
+  const isImmersive = user && ['buyer', 'seller'].includes(user.role);
+
   return (
-    <div className="animate-slide-up" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      
-      {/* Botón Volver */}
-      <div>
-        <button onClick={() => navigate(-1)} className="btn-secondary" style={{ padding: '0.5rem 1rem', background: 'transparent', border: 'none', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-          <ArrowLeft size={16} /> Volver
-        </button>
-      </div>
-
-      {/* Hero Banner */}
-      <div className="card-panel" style={{ position: 'relative', overflow: 'hidden', padding: 0, border: 'none' }}>
-        <div style={{ height: '150px', background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)' }}></div>
-        <div style={{ padding: '2rem', display: 'flex', alignItems: 'flex-end', gap: '2rem', marginTop: '-60px' }}>
-          <div style={{ width: 120, height: 120, borderRadius: '50%', background: 'var(--bg-panel)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid var(--bg-main)', color: 'var(--primary)', boxShadow: 'var(--shadow-md)' }}>
-            <Store size={50} />
-          </div>
-          <div style={{ flex: 1, paddingBottom: '0.5rem' }}>
-            <h1 style={{ fontSize: '2.5rem', margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {profile.storeName}
-              <ShieldCheck size={28} color="var(--success)" title="Tienda Verificada" />
-            </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginTop: '0.2rem' }}>{profile.slogan}</p>
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', paddingBottom: '0.5rem' }}>
-            <button className="btn-primary" onClick={() => navigate(`/chat/${id}`)}>
-              <MessageSquare size={18} /> Contactar Empresa
-            </button>
-          </div>
+    <div className="animate-slide-up" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <ModuleHero 
+        eyebrow="Tienda Autorizada"
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {profile.storeName}
+            <ShieldCheck size={28} color="var(--success)" title="Tienda Verificada" />
+          </span>
+        }
+        subtitle={profile.slogan}
+        iconName="default"
+        fullBleed={isImmersive}
+      >
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+          <button className="btn-primary" onClick={() => navigate(`/chat/${id}`)}>
+            <MessageSquare size={18} /> Contactar Empresa
+          </button>
+          <button onClick={() => navigate(-1)} className="btn-secondary" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
+            <ArrowLeft size={16} /> Volver
+          </button>
         </div>
-      </div>
+      </ModuleHero>
 
+      <div style={{ flex: 1, padding: isImmersive ? '0 2rem 2rem' : '2rem', maxWidth: isImmersive ? 1200 : 'none', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      
       {/* Grid de Información */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
         
@@ -357,6 +354,7 @@ export default function StorefrontPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
