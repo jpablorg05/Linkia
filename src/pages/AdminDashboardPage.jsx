@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Users, ShoppingBag, DollarSign, Activity } from 'lucide-react';
+import api from '../services/api';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null);
@@ -10,20 +11,12 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const headers = { Authorization: `Bearer ${token}` };
-
         const [statsRes, usersRes] = await Promise.all([
-          fetch('http://localhost:3000/api/admin/stats', { headers }),
-          fetch('http://localhost:3000/api/admin/users', { headers })
+          api.get('/admin/stats'),
+          api.get('/admin/users')
         ]);
-
-        if (statsRes.ok && usersRes.ok) {
-          const statsData = await statsRes.json();
-          const usersData = await usersRes.json();
-          setStats(statsData);
-          setUsersList(usersData);
-        }
+        setStats(statsRes.data);
+        setUsersList(usersRes.data);
       } catch (error) {
         console.error("Error fetching admin data:", error);
       } finally {

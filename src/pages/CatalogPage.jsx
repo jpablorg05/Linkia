@@ -133,7 +133,7 @@ export default function CatalogPage() {
                             const uploadRes = await api.post('/upload', formData, {
                               headers: { 'Content-Type': 'multipart/form-data' }
                             });
-                            uploadedUrls.push(`http://localhost:3000${uploadRes.data.url}`);
+                            uploadedUrls.push(`${(import.meta.env.VITE_API_URL || 'https://linkia-backend.onrender.com/api').replace('/api', '')}${uploadRes.data.url}`);
                           } catch (err) {
                             console.error("Error al subir archivo", err);
                             alert("Error al subir imagen al servidor");
